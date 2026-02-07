@@ -24,12 +24,10 @@ function! mimasu#diff#open(base_ref, filepath, git_root) abort
   else
     enew
     setlocal buftype=nofile bufhidden=wipe
+    execute 'file ' . fnameescape('[deleted] ' . a:filepath)
+    filetype detect
     call setline(1, ['(file deleted)'])
     setlocal nomodifiable
-    let l:ext = fnamemodify(a:filepath, ':e')
-    if !empty(l:ext)
-      let &l:filetype = s:ext_to_filetype(l:ext)
-    endif
   endif
   diffthis
   let s:state.current_winid = win_getid()
@@ -37,7 +35,8 @@ function! mimasu#diff#open(base_ref, filepath, git_root) abort
   " Create base file buffer to the left
   aboveleft vnew
   setlocal buftype=nofile bufhidden=wipe nobuflisted
-  execute 'file ' . fnameescape('[base] ' . a:filepath)
+  execute 'silent file ' . fnameescape('[base] ' . a:filepath)
+  filetype detect
   let l:content = mimasu#gh#get_base_file_content(a:base_ref, a:filepath)
   if l:content is v:null
     call setline(1, ['(new file)'])
@@ -45,10 +44,6 @@ function! mimasu#diff#open(base_ref, filepath, git_root) abort
     call setline(1, l:content)
   endif
   setlocal nomodifiable
-  let l:ext = fnamemodify(a:filepath, ':e')
-  if !empty(l:ext)
-    let &l:filetype = s:ext_to_filetype(l:ext)
-  endif
   diffthis
   let s:state.base_bufnr = bufnr('%')
   let s:state.base_winid = win_getid()
@@ -75,23 +70,4 @@ function! mimasu#diff#close() abort
   let s:state.base_bufnr = -1
   let s:state.base_winid = -1
   let s:state.current_winid = -1
-endfunction
-
-function! s:ext_to_filetype(ext) abort
-  let l:map = {
-        \ 'js': 'javascript',
-        \ 'ts': 'typescript',
-        \ 'tsx': 'typescriptreact',
-        \ 'jsx': 'javascriptreact',
-        \ 'py': 'python',
-        \ 'rb': 'ruby',
-        \ 'rs': 'rust',
-        \ 'yml': 'yaml',
-        \ 'md': 'markdown',
-        \ 'sh': 'bash',
-        \ 'zsh': 'zsh',
-        \ 'ex': 'elixir',
-        \ 'exs': 'elixir',
-        \ }
-  return get(l:map, a:ext, a:ext)
 endfunction
