@@ -5,9 +5,8 @@ let s:state = {
       \ }
 
 function! mimasu#diff#open(base_ref, filepath, git_root) abort
-  call mimasu#diff#close()
-
   let l:tree_winid = win_getid()
+  call mimasu#diff#close(l:tree_winid)
   let l:fullpath = a:git_root . '/' . a:filepath
 
   " Move to the right of tree window
@@ -15,7 +14,7 @@ function! mimasu#diff#open(base_ref, filepath, git_root) abort
 
   " If we're still in the tree window (no window to the right), create a new split
   if win_getid() == l:tree_winid
-    vnew
+    rightbelow vnew
   endif
 
   " Open current file (real file for LSP support)
@@ -48,24 +47,20 @@ function! mimasu#diff#open(base_ref, filepath, git_root) abort
   let s:state.base_bufnr = bufnr('%')
   let s:state.base_winid = win_getid()
 
-  " Return cursor to tree window
+  " Restore tree width, then equalize diff windows
   call win_gotoid(l:tree_winid)
+  execute 'vertical resize ' . g:mimasu_sidebar_width
+  wincmd =
 endfunction
 
-function! mimasu#diff#close() abort
-  " Close base buffer window
-  if s:state.base_winid != -1 && win_id2win(s:state.base_winid) > 0
-    let l:winnr = win_id2win(s:state.base_winid)
-    execute l:winnr . 'wincmd w'
-    close
-  endif
-
-  " Turn off diff in current file window
-  if s:state.current_winid != -1 && win_id2win(s:state.current_winid) > 0
-    let l:winnr = win_id2win(s:state.current_winid)
-    execute l:winnr . 'wincmd w'
-    diffoff
-  endif
+function! mimasu#diff#close(tree_winid) abort
+  " Close all windows in current tab except the tree window
+  for l:winid in gettabinfo(tabpagenr())[0].windows
+    if l:winid != a:tree_winid && win_id2win(l:winid) > 0
+      let l:winnr = win_id2win(l:winid)
+      execute l:winnr . 'close'
+    endif
+  endfor
 
   let s:state.base_bufnr = -1
   let s:state.base_winid = -1

@@ -105,7 +105,7 @@ function! mimasu#toggle_or_select() abort
 endfunction
 
 function! mimasu#close() abort
-  call mimasu#diff#close()
+  call mimasu#diff#close(s:state.tree_winid)
 
   if s:state.tree_winid != -1 && win_id2win(s:state.tree_winid) > 0
     let l:winnr = win_id2win(s:state.tree_winid)
