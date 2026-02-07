@@ -132,6 +132,8 @@ function! mimasu#refresh() abort
     return
   endif
 
+  call mimasu#gh#clear_cache()
+
   call win_gotoid(s:state.tree_winid)
   setlocal modifiable
   call s:set_buffer_lines(['Refreshing PR info...'])

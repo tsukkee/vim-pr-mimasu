@@ -1,8 +1,16 @@
+let s:git_root_cache = ''
+let s:base_file_cache = {}
+let s:use_origin_prefix = -1
+
 function! s:get_git_root() abort
+  if !empty(s:git_root_cache)
+    return s:git_root_cache
+  endif
   let l:root = systemlist('git rev-parse --show-toplevel')[0]
   if v:shell_error
     return ''
   endif
+  let s:git_root_cache = l:root
   return l:root
 endfunction
 
@@ -53,16 +61,43 @@ function! s:on_fetch_exit(ctx, _job, exit_code) abort
   endtry
 endfunction
 
-function! mimasu#gh#get_base_file_content(base_ref, filepath) abort
-  let l:root = s:get_git_root()
-  let l:result = systemlist('git -C ' . shellescape(l:root) . ' show ' . shellescape('origin/' . a:base_ref . ':' . a:filepath))
-  if v:shell_error
-    let l:result = systemlist('git -C ' . shellescape(l:root) . ' show ' . shellescape(a:base_ref . ':' . a:filepath))
-    if v:shell_error
-      return v:null
-    endif
+function! mimasu#gh#get_base_file_content(base_ref, filepath, git_root) abort
+  let l:cache_key = a:base_ref . ':' . a:filepath
+  if has_key(s:base_file_cache, l:cache_key)
+    return s:base_file_cache[l:cache_key]
   endif
+
+  let l:ref = s:resolve_base_ref(a:base_ref, a:git_root)
+  let l:result = systemlist('git -C ' . shellescape(a:git_root) . ' show ' . shellescape(l:ref . ':' . a:filepath))
+  if v:shell_error
+    let s:base_file_cache[l:cache_key] = v:null
+    return v:null
+  endif
+  let s:base_file_cache[l:cache_key] = l:result
   return l:result
+endfunction
+
+function! s:resolve_base_ref(base_ref, git_root) abort
+  if s:use_origin_prefix == 1
+    return 'origin/' . a:base_ref
+  elseif s:use_origin_prefix == 0
+    return a:base_ref
+  endif
+
+  " First call: determine whether origin/ prefix works
+  let l:check = systemlist('git -C ' . shellescape(a:git_root) . ' rev-parse --verify origin/' . shellescape(a:base_ref))
+  if !v:shell_error
+    let s:use_origin_prefix = 1
+    return 'origin/' . a:base_ref
+  endif
+  let s:use_origin_prefix = 0
+  return a:base_ref
+endfunction
+
+function! mimasu#gh#clear_cache() abort
+  let s:git_root_cache = ''
+  let s:base_file_cache = {}
+  let s:use_origin_prefix = -1
 endfunction
 
 function! mimasu#gh#get_git_root() abort

@@ -36,7 +36,7 @@ function! mimasu#diff#open(base_ref, filepath, git_root) abort
   setlocal buftype=nofile bufhidden=wipe nobuflisted
   execute 'silent file ' . fnameescape('[base] ' . a:filepath)
   filetype detect
-  let l:content = mimasu#gh#get_base_file_content(a:base_ref, a:filepath)
+  let l:content = mimasu#gh#get_base_file_content(a:base_ref, a:filepath, a:git_root)
   if l:content is v:null
     call setline(1, ['(new file)'])
   else
