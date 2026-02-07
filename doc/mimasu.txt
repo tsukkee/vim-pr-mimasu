@@ -1,0 +1,91 @@
+*mimasu.txt*	PR Review tool for Vim
+
+Author:  tsukkee
+License: MIT
+
+==============================================================================
+INTRODUCTION					*mimasu* *vim-pr-mimasu*
+
+vim-pr-mimasu is a Vim plugin for reviewing GitHub Pull Requests.
+It shows changed files in a tree view and opens a 3-pane diff layout where
+the current file is opened as a real file, allowing LSP features to work.
+
+Requirements:
+- Vim 8.0+ with |job| and |channel| support
+- gh CLI (https://cli.github.com/) installed and authenticated
+- Git repository with an open pull request
+
+==============================================================================
+COMMANDS					*mimasu-commands*
+
+						*:Mimasu*
+:Mimasu		Open the PR review tree sidebar. If already open, close it
+		(toggle behavior). Fetches PR information asynchronously
+		using gh CLI.
+
+						*:MimasuClose*
+:MimasuClose	Close the PR review tree and any open diff windows.
+
+==============================================================================
+OPTIONS						*mimasu-options*
+
+						*g:mimasu_sidebar_width*
+g:mimasu_sidebar_width
+		Width of the tree sidebar in columns.
+		Default: 40
+
+						*g:mimasu_sidebar_position*
+g:mimasu_sidebar_position
+		Position command for the tree sidebar window.
+		Default: "topleft vertical"
+
+						*g:mimasu_fold_icons*
+g:mimasu_fold_icons
+		Icons for expanded and collapsed directories.
+		Default: ['▾', '▸']
+
+==============================================================================
+KEY MAPPINGS					*mimasu-mappings*
+
+The following mappings are available in the tree buffer:
+
+<CR>		Open the selected file in diff view, or toggle a directory.
+o		Same as <CR>.
+<2-LeftMouse>	Same as <CR>.
+q		Close the PR review tree and diff windows.
+R		Refresh the PR information.
+
+==============================================================================
+LAYOUT						*mimasu-layout*
+
+When a file is selected, the following 3-pane layout is created:
+>
+  ┌──────────┬──────────────┬──────────────┐
+  │  Tree    │  Base file   │ Current file │
+  │  (left)  │  (diff left) │ (diff right) │
+  │  40col   │  :diffthis   │ :diffthis    │
+  └──────────┴──────────────┴──────────────┘
+<
+The current file (right) is opened as a real file, so LSP features
+such as go-to-definition, completion, and diagnostics remain active.
+
+The base file (left) is a read-only scratch buffer showing the file
+content from the PR's base branch.
+
+==============================================================================
+FUNCTIONS					*mimasu-functions*
+
+mimasu#open()					*mimasu#open()*
+		Open the PR review tree (same as |:Mimasu|).
+
+mimasu#close()					*mimasu#close()*
+		Close the PR review tree (same as |:MimasuClose|).
+
+mimasu#toggle_or_select()			*mimasu#toggle_or_select()*
+		Toggle directory or open file diff at cursor line.
+
+mimasu#refresh()				*mimasu#refresh()*
+		Refresh PR information from GitHub.
+
+==============================================================================
+ vim:tw=78:ts=8:ft=help:norl:
