@@ -17,7 +17,10 @@ hi default link MimasuHeader Title
 hi default link MimasuSeparator Comment
 hi default link MimasuDirIcon Special
 hi default link MimasuDirName Directory
+syntax match MimasuCommentCount /{\d\+}/
+
 hi default link MimasuFileAdditions DiffAdd
 hi default link MimasuFileDeletions DiffDelete
+hi default link MimasuCommentCount WarningMsg
 
 let b:current_syntax = 'mimasu_tree'
