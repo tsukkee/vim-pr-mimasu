@@ -22,16 +22,17 @@ function! mimasu#review#start_comment(pr_info, filepath, line, end_line, side) a
   botright new
   resize 8
 
-  let s:state.comment_bufnr = bufnr('%')
-  let s:state.comment_winid = win_getid()
-
-  " Build header for the status line
   let l:range = a:line
   if a:end_line > 0 && a:end_line != a:line
     let l:range = a:line . '-' . a:end_line
   endif
   let l:side_label = a:side ==# 'LEFT' ? 'base' : 'current'
-  let &l:statusline = ' Comment: ' . a:filepath . ':' . l:range . ' (' . l:side_label . ')  |  :w Submit  q Cancel'
+  execute 'silent file ' . fnameescape('[comment] ' . a:filepath . ':' . l:range . ' (' . l:side_label . ')')
+
+  let s:state.comment_bufnr = bufnr('%')
+  let s:state.comment_winid = win_getid()
+
+  let &l:statusline = ' :w Submit  q Cancel'
 
   setlocal filetype=mimasu_comment
 endfunction
@@ -52,6 +53,7 @@ function! mimasu#review#submit() abort
     return
   endif
 
+  setlocal nomodified
   echomsg 'mimasu: Submitting comment...'
 
   call mimasu#gh#submit_review_comment(

@@ -106,39 +106,120 @@ endfunction
 
 function! mimasu#gh#submit_review_comment(pr_info, filepath, line, end_line, side, body, Callback) abort
   let l:root = s:get_git_root()
-  let l:comment = {'path': a:filepath, 'body': a:body, 'side': a:side}
-  if a:end_line > 0 && a:end_line != a:line
-    let l:comment.start_line = a:line
-    let l:comment.line = a:end_line
-  else
-    let l:comment.line = a:line
+  let l:ctx = {
+        \ 'pr_info': a:pr_info,
+        \ 'filepath': a:filepath,
+        \ 'line': a:line,
+        \ 'end_line': a:end_line,
+        \ 'side': a:side,
+        \ 'body': a:body,
+        \ 'Callback': a:Callback,
+        \ 'root': l:root,
+        \ }
+
+  " First, find existing PENDING review
+  let l:endpoint = 'repos/{owner}/{repo}/pulls/' . a:pr_info.number . '/reviews'
+  let l:cmd = ['gh', 'api', l:endpoint, '--jq', '[.[] | select(.state == "PENDING") | .id][0]']
+  let l:out_buf = []
+  let l:err_buf = []
+  let l:ctx.out_buf = l:out_buf
+  let l:ctx.err_buf = l:err_buf
+
+  call job_start(l:cmd, {
+        \ 'cwd': l:root,
+        \ 'out_cb': {_ch, msg -> add(l:out_buf, msg)},
+        \ 'err_cb': {_ch, msg -> add(l:err_buf, msg)},
+        \ 'exit_cb': function('s:on_find_pending_review', [l:ctx]),
+        \ })
+endfunction
+
+function! s:on_find_pending_review(ctx, _job, exit_code) abort
+  let l:review_id = ''
+  if a:exit_code == 0
+    let l:review_id = trim(join(a:ctx.out_buf, ''))
   endif
 
-  let l:review = {'commit_id': a:pr_info.headRefOid, 'comments': [l:comment]}
+  if !empty(l:review_id) && l:review_id !=# 'null'
+    " PENDING review exists: add comment to it
+    call s:add_comment_to_review(a:ctx, l:review_id)
+  else
+    " No PENDING review: create new one with comment
+    call s:create_review_with_comment(a:ctx)
+  endif
+endfunction
+
+function! s:build_comment(ctx) abort
+  let l:comment = {
+        \ 'path': a:ctx.filepath,
+        \ 'body': a:ctx.body,
+        \ 'side': a:ctx.side,
+        \ 'commit_id': a:ctx.pr_info.headRefOid,
+        \ }
+  if a:ctx.end_line > 0 && a:ctx.end_line != a:ctx.line
+    let l:comment.start_line = a:ctx.line
+    let l:comment.line = a:ctx.end_line
+  else
+    let l:comment.line = a:ctx.line
+  endif
+  return l:comment
+endfunction
+
+function! s:create_review_with_comment(ctx) abort
+  let l:comment = s:build_comment(a:ctx)
+  " Remove commit_id from comment, it goes at review level
+  let l:commit_id = remove(l:comment, 'commit_id')
+  let l:review = {'commit_id': l:commit_id, 'comments': [l:comment]}
   let l:json = json_encode(l:review)
-  let l:endpoint = 'repos/{owner}/{repo}/pulls/' . a:pr_info.number . '/reviews'
+  let l:endpoint = 'repos/{owner}/{repo}/pulls/' . a:ctx.pr_info.number . '/reviews'
   let l:cmd = ['gh', 'api', l:endpoint, '--method', 'POST', '--input', '-']
 
   let l:out_buf = []
   let l:err_buf = []
-  let l:ctx = {'out_buf': l:out_buf, 'err_buf': l:err_buf, 'Callback': a:Callback}
+  let l:cb_ctx = {'out_buf': l:out_buf, 'err_buf': l:err_buf, 'Callback': a:ctx.Callback}
 
   let l:job = job_start(l:cmd, {
-        \ 'cwd': l:root,
+        \ 'cwd': a:ctx.root,
         \ 'in_mode': 'raw',
         \ 'out_cb': {_ch, msg -> add(l:out_buf, msg)},
         \ 'err_cb': {_ch, msg -> add(l:err_buf, msg)},
-        \ 'exit_cb': function('s:on_review_exit', [l:ctx]),
+        \ 'exit_cb': function('s:on_submit_exit', [l:cb_ctx]),
         \ })
   let l:ch = job_getchannel(l:job)
   call ch_sendraw(l:ch, l:json)
   call ch_close_in(l:ch)
 endfunction
 
-function! s:on_review_exit(ctx, _job, exit_code) abort
+function! s:add_comment_to_review(ctx, review_id) abort
+  let l:comment = s:build_comment(a:ctx)
+  let l:comment.pull_request_review_id = str2nr(a:review_id)
+  let l:json = json_encode(l:comment)
+  let l:endpoint = 'repos/{owner}/{repo}/pulls/' . a:ctx.pr_info.number . '/comments'
+  let l:cmd = ['gh', 'api', l:endpoint, '--method', 'POST', '--input', '-']
+
+  let l:out_buf = []
+  let l:err_buf = []
+  let l:cb_ctx = {'out_buf': l:out_buf, 'err_buf': l:err_buf, 'Callback': a:ctx.Callback}
+
+  let l:job = job_start(l:cmd, {
+        \ 'cwd': a:ctx.root,
+        \ 'in_mode': 'raw',
+        \ 'out_cb': {_ch, msg -> add(l:out_buf, msg)},
+        \ 'err_cb': {_ch, msg -> add(l:err_buf, msg)},
+        \ 'exit_cb': function('s:on_submit_exit', [l:cb_ctx]),
+        \ })
+  let l:ch = job_getchannel(l:job)
+  call ch_sendraw(l:ch, l:json)
+  call ch_close_in(l:ch)
+endfunction
+
+function! s:on_submit_exit(ctx, _job, exit_code) abort
   let l:Callback = a:ctx.Callback
   if a:exit_code != 0
     let l:err = join(a:ctx.err_buf, "\n")
+    let l:out = join(a:ctx.out_buf, "\n")
+    if !empty(l:out)
+      let l:err .= "\n" . l:out
+    endif
     call timer_start(0, {-> l:Callback(v:null, l:err)})
     return
   endif
