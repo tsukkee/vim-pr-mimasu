@@ -33,7 +33,7 @@ endfunction
 
 function! mimasu#gh#fetch_pr_info(Callback) abort
   let l:root = s:get_git_root()
-  let l:cmd = ['gh', 'pr', 'view', '--json', 'baseRefName,headRefName,number,title,url,files']
+  let l:cmd = ['gh', 'pr', 'view', '--json', 'baseRefName,headRefName,headRefOid,number,title,url,files']
   let l:out_buf = []
   let l:err_buf = []
   let l:ctx = {'out_buf': l:out_buf, 'err_buf': l:err_buf, 'Callback': a:Callback}
@@ -102,4 +102,51 @@ endfunction
 
 function! mimasu#gh#get_git_root() abort
   return s:get_git_root()
+endfunction
+
+function! mimasu#gh#submit_review_comment(pr_info, filepath, line, end_line, side, body, Callback) abort
+  let l:root = s:get_git_root()
+  let l:comment = {'path': a:filepath, 'body': a:body, 'side': a:side}
+  if a:end_line > 0 && a:end_line != a:line
+    let l:comment.start_line = a:line
+    let l:comment.line = a:end_line
+  else
+    let l:comment.line = a:line
+  endif
+
+  let l:review = {'commit_id': a:pr_info.headRefOid, 'comments': [l:comment]}
+  let l:json = json_encode(l:review)
+  let l:endpoint = 'repos/{owner}/{repo}/pulls/' . a:pr_info.number . '/reviews'
+  let l:cmd = ['gh', 'api', l:endpoint, '--method', 'POST', '--input', '-']
+
+  let l:out_buf = []
+  let l:err_buf = []
+  let l:ctx = {'out_buf': l:out_buf, 'err_buf': l:err_buf, 'Callback': a:Callback}
+
+  let l:job = job_start(l:cmd, {
+        \ 'cwd': l:root,
+        \ 'in_mode': 'raw',
+        \ 'out_cb': {_ch, msg -> add(l:out_buf, msg)},
+        \ 'err_cb': {_ch, msg -> add(l:err_buf, msg)},
+        \ 'exit_cb': function('s:on_review_exit', [l:ctx]),
+        \ })
+  let l:ch = job_getchannel(l:job)
+  call ch_sendraw(l:ch, l:json)
+  call ch_close_in(l:ch)
+endfunction
+
+function! s:on_review_exit(ctx, _job, exit_code) abort
+  let l:Callback = a:ctx.Callback
+  if a:exit_code != 0
+    let l:err = join(a:ctx.err_buf, "\n")
+    call timer_start(0, {-> l:Callback(v:null, l:err)})
+    return
+  endif
+  try
+    let l:json_str = join(a:ctx.out_buf, "\n")
+    let l:result = json_decode(l:json_str)
+    call timer_start(0, {-> l:Callback(l:result, '')})
+  catch
+    call timer_start(0, {-> l:Callback(v:null, 'Failed to parse response')})
+  endtry
 endfunction

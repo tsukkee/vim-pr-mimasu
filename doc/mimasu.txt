@@ -55,6 +55,18 @@ o		Same as <CR>.
 q		Close the PR review tree and diff windows.
 R		Refresh the PR information.
 
+The following mappings are available in diff buffers:
+
+<Leader>c	Add a review comment on the current line (Normal mode)
+		or selected lines (Visual mode). The comment is added
+		to a pending review.
+<Leader>x	Open the PR in a web browser.
+
+The following mappings are available in the comment buffer:
+
+:w		Submit the comment to the pending review.
+q		Cancel and close the comment buffer.
+
 ==============================================================================
 LAYOUT						*mimasu-layout*
 
@@ -73,6 +85,18 @@ The base file (left) is a read-only scratch buffer showing the file
 content from the PR's base branch.
 
 ==============================================================================
+REVIEW COMMENTS					*mimasu-review*
+
+You can add review comments directly from Vim using {<Leader>c} in
+a diff buffer. Comments are submitted as a pending review (similar
+to "Start a review" on GitHub). To finalize the review (Approve,
+Comment, or Request changes), open the PR in a browser with
+{<Leader>x} and submit from there.
+
+Comment counts are shown in the file tree as {N} next to modified
+files.
+
+==============================================================================
 FUNCTIONS					*mimasu-functions*
 
 mimasu#open()					*mimasu#open()*
@@ -86,6 +110,13 @@ mimasu#toggle_or_select()			*mimasu#toggle_or_select()*
 
 mimasu#refresh()				*mimasu#refresh()*
 		Refresh PR information from GitHub.
+
+mimasu#start_comment()				*mimasu#start_comment()*
+		Open comment buffer for the current cursor line.
+		Supports range for multi-line comments (Visual mode).
+
+mimasu#open_in_browser()			*mimasu#open_in_browser()*
+		Open the PR URL in a web browser.
 
 ==============================================================================
  vim:tw=78:ts=8:ft=help:norl:

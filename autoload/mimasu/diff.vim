@@ -47,10 +47,27 @@ function! mimasu#diff#open(base_ref, filepath, git_root) abort
   let s:state.base_bufnr = bufnr('%')
   let s:state.base_winid = win_getid()
 
+  " Set review keymaps on both diff windows
+  call s:set_review_keymaps(s:state.current_winid)
+  call s:set_review_keymaps(s:state.base_winid)
+
   " Restore tree width, then equalize diff windows
   call win_gotoid(l:tree_winid)
   execute 'vertical resize ' . g:mimasu_sidebar_width
   wincmd =
+endfunction
+
+function! s:set_review_keymaps(winid) abort
+  let l:cur = win_getid()
+  call win_gotoid(a:winid)
+  nnoremap <buffer> <silent> <Leader>c <Cmd>call mimasu#start_comment()<CR>
+  xnoremap <buffer> <silent> <Leader>c :call mimasu#start_comment()<CR>
+  nnoremap <buffer> <silent> <Leader>x <Cmd>call mimasu#open_in_browser()<CR>
+  call win_gotoid(l:cur)
+endfunction
+
+function! mimasu#diff#get_state() abort
+  return s:state
 endfunction
 
 function! mimasu#diff#close(tree_winid) abort

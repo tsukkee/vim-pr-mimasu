@@ -104,6 +104,30 @@ function! mimasu#toggle_or_select() abort
   call mimasu#diff#open(s:state.pr_info.baseRefName, l:path, l:git_root)
 endfunction
 
+function! mimasu#start_comment() abort range
+  if empty(s:state.pr_info) || empty(s:state.current_file)
+    echohl WarningMsg
+    echomsg 'mimasu: No file selected'
+    echohl None
+    return
+  endif
+
+  let l:winid = win_getid()
+  let l:side = 'RIGHT'
+  " Check if cursor is in the base (left) diff window
+  if has_key(mimasu#diff#get_state(), 'base_winid') && l:winid == mimasu#diff#get_state().base_winid
+    let l:side = 'LEFT'
+  endif
+
+  let l:line = a:firstline
+  let l:end_line = a:lastline
+  call mimasu#review#start_comment(s:state.pr_info, s:state.current_file, l:line, l:end_line, l:side)
+endfunction
+
+function! mimasu#open_in_browser() abort
+  call mimasu#review#open_in_browser()
+endfunction
+
 function! mimasu#close() abort
   call mimasu#diff#close(s:state.tree_winid)
 
@@ -122,6 +146,10 @@ function! mimasu#close() abort
   let s:state.pr_info = {}
   let s:state.tree_data = {}
   let s:state.current_file = ''
+endfunction
+
+function! mimasu#render_tree() abort
+  call s:render_tree()
 endfunction
 
 function! mimasu#refresh() abort

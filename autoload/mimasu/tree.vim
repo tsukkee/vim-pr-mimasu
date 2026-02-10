@@ -78,7 +78,9 @@ function! s:render_node(node, lines, depth) abort
       endif
       let l:changes = ' [' . join(l:parts, ' ') . ']'
     endif
-    call add(a:lines, l:indent . '  ' . l:name . l:changes)
+    let l:comment_count = mimasu#review#get_comment_count(l:child._path)
+    let l:comment_mark = l:comment_count > 0 ? ' {' . l:comment_count . '}' : ''
+    call add(a:lines, l:indent . '  ' . l:name . l:changes . l:comment_mark)
     call add(s:line_map, {'type': 'file', 'path': l:child._path})
   endfor
 endfunction
