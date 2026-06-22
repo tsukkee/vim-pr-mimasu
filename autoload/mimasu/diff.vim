@@ -4,7 +4,7 @@ let s:state = {
       \ 'current_winid': -1,
       \ }
 
-function! mimasu#diff#open(base_ref, filepath, git_root) abort
+function! mimasu#diff#open(base_ref, head_ref_oid, filepath, git_root) abort
   let l:tree_winid = win_getid()
   call mimasu#diff#close(l:tree_winid)
   let l:fullpath = a:git_root . '/' . a:filepath
@@ -36,13 +36,13 @@ function! mimasu#diff#open(base_ref, filepath, git_root) abort
   setlocal buftype=nofile bufhidden=wipe nobuflisted
   execute 'silent file ' . fnameescape('[base] ' . a:filepath)
   filetype detect
-  let l:content = mimasu#gh#get_base_file_content(a:base_ref, a:filepath, a:git_root)
+  let l:content = mimasu#gh#get_base_file_content(a:base_ref, a:head_ref_oid, a:filepath, a:git_root)
   if l:content is v:null
     call setline(1, ['(new file)'])
   else
     call setline(1, l:content)
   endif
-  setlocal nomodifiable
+  setlocal nomodifiable wrap
   diffthis
   let s:state.base_bufnr = bufnr('%')
   let s:state.base_winid = win_getid()
@@ -60,10 +60,31 @@ endfunction
 function! s:set_review_keymaps(winid) abort
   let l:cur = win_getid()
   call win_gotoid(a:winid)
+  setlocal wrap
   nnoremap <buffer> <silent> <Leader>c <Cmd>call mimasu#start_comment()<CR>
   xnoremap <buffer> <silent> <Leader>c :call mimasu#start_comment()<CR>
   nnoremap <buffer> <silent> <Leader>x <Cmd>call mimasu#open_in_browser()<CR>
+  nnoremap <buffer> <silent> <Leader>w <Cmd>call mimasu#diff#toggle_wrap()<CR>
+  nnoremap <buffer> <silent> <Leader>i <Cmd>call mimasu#diff#toggle_iwhiteall()<CR>
   call win_gotoid(l:cur)
+endfunction
+
+function! mimasu#diff#toggle_wrap() abort
+  let l:state = mimasu#diff#get_state()
+  for l:winid in [l:state.base_winid, l:state.current_winid]
+    if l:winid != -1 && win_id2win(l:winid) > 0
+      call win_execute(l:winid, 'setlocal wrap!')
+    endif
+  endfor
+endfunction
+
+function! mimasu#diff#toggle_iwhiteall() abort
+  if stridx(&diffopt, 'iwhiteall') >= 0
+    set diffopt-=iwhiteall
+  else
+    set diffopt+=iwhiteall
+  endif
+  diffupdate
 endfunction
 
 function! mimasu#diff#get_state() abort

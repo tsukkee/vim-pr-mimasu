@@ -101,7 +101,7 @@ function! mimasu#toggle_or_select() abort
 
   let s:state.current_file = l:path
   let l:git_root = mimasu#gh#get_git_root()
-  call mimasu#diff#open(s:state.pr_info.baseRefName, l:path, l:git_root)
+  call mimasu#diff#open(s:state.pr_info.baseRefName, s:state.pr_info.headRefOid, l:path, l:git_root)
 endfunction
 
 function! mimasu#start_comment() abort range

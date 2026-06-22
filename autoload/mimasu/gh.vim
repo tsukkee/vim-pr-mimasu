@@ -61,20 +61,31 @@ function! s:on_fetch_exit(ctx, _job, exit_code) abort
   endtry
 endfunction
 
-function! mimasu#gh#get_base_file_content(base_ref, filepath, git_root) abort
-  let l:cache_key = a:base_ref . ':' . a:filepath
+function! mimasu#gh#get_base_file_content(base_ref, head_ref_oid, filepath, git_root) abort
+  let l:cache_key = a:base_ref . ':' . a:head_ref_oid . ':' . a:filepath
   if has_key(s:base_file_cache, l:cache_key)
     return s:base_file_cache[l:cache_key]
   endif
 
-  let l:ref = s:resolve_base_ref(a:base_ref, a:git_root)
-  let l:result = systemlist('git -C ' . shellescape(a:git_root) . ' show ' . shellescape(l:ref . ':' . a:filepath))
+  let l:merge_base = s:resolve_merge_base(a:base_ref, a:head_ref_oid, a:git_root)
+  let l:result = systemlist('git -C ' . shellescape(a:git_root) . ' show ' . shellescape(l:merge_base . ':' . a:filepath))
   if v:shell_error
     let s:base_file_cache[l:cache_key] = v:null
     return v:null
   endif
   let s:base_file_cache[l:cache_key] = l:result
   return l:result
+endfunction
+
+function! s:resolve_merge_base(base_ref, head_ref_oid, git_root) abort
+  " Try origin/<base_ref> first, fall back to <base_ref>
+  let l:base = s:resolve_base_ref(a:base_ref, a:git_root)
+  let l:result = systemlist('git -C ' . shellescape(a:git_root) . ' merge-base ' . shellescape(l:base) . ' ' . shellescape(a:head_ref_oid))
+  if !v:shell_error && !empty(l:result)
+    return l:result[0]
+  endif
+  " Fallback: use base ref directly
+  return l:base
 endfunction
 
 function! s:resolve_base_ref(base_ref, git_root) abort
