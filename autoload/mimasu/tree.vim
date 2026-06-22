@@ -29,7 +29,11 @@ function! mimasu#tree#render(tree, pr_info) abort
   let s:line_map = []
   let l:lines = []
 
-  call add(l:lines, '#' . a:pr_info.number . ' ' . a:pr_info.title)
+  if get(a:pr_info, 'mode', 'pr') ==# 'diff'
+    call add(l:lines, a:pr_info.title)
+  else
+    call add(l:lines, '#' . a:pr_info.number . ' ' . a:pr_info.title)
+  endif
   call add(s:line_map, {'type': 'header'})
 
   call add(l:lines, a:pr_info.url)

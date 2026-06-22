@@ -23,7 +23,16 @@ COMMANDS					*mimasu-commands*
 		(toggle behavior). Fetches PR information asynchronously
 		using gh CLI.
 
-						*:MimasuClose*
+						*:MimasuDiff*
+:MimasuDiff [{rev}]
+			Open the local diff review tree, comparing the working
+			tree against {rev}. When {rev} is omitted it defaults to
+			HEAD, so all uncommitted changes (both staged and
+			unstaged) are shown. This is the "review & edit in place"
+			mode: the right pane is the real file, so you can fix the
+			diff on the spot. Does not require gh or an open PR.
+			Toggles like |:Mimasu|. See |mimasu-local-diff|.
+							*:MimasuClose*
 :MimasuClose	Close the PR review tree and any open diff windows.
 
 ==============================================================================
@@ -59,8 +68,14 @@ The following mappings are available in diff buffers:
 
 <Leader>c	Add a review comment on the current line (Normal mode)
 		or selected lines (Visual mode). The comment is added
-		to a pending review.
-<Leader>x	Open the PR in a web browser.
+		to a pending review. (PR mode only)
+<Leader>x	Open the PR in a web browser. (PR mode only)
+<Leader>w	Toggle line wrapping in both diff windows.
+<Leader>i	Toggle ignoring all whitespace in the diff.
+
+In the local diff mode (|:MimasuDiff|), the review-comment mappings
+({<Leader>c} and {<Leader>x}) are not set, since there is no PR to
+comment on; only {<Leader>w} and {<Leader>i} are available.
 
 The following mappings are available in the comment buffer:
 
@@ -97,10 +112,32 @@ Comment counts are shown in the file tree as {N} next to modified
 files.
 
 ==============================================================================
+LOCAL DIFF MODE					*mimasu-local-diff*
+
+In addition to reviewing a GitHub PR, vim-pr-mimasu can review the local
+working tree diff with |:MimasuDiff|. This is handy for reviewing and
+fixing changes made by a coding agent before committing them.
+
+	:MimasuDiff		Review all uncommitted changes (HEAD).
+	:MimasuDiff main	Review the working tree against "main".
+
+The layout and tree view are identical to PR mode. The left (base) pane
+shows the file content at the compared revision, and the right pane is
+the real file, so you can edit and fix the diff in place with full LSP
+support. Renamed and copied files show the original file in the base pane.
+
+This mode does not require gh or an open pull request. Since there is no
+PR, the review-comment workflow ({<Leader>c} / {<Leader>x}) is disabled.
+
+==============================================================================
 FUNCTIONS					*mimasu-functions*
 
 mimasu#open()					*mimasu#open()*
 		Open the PR review tree (same as |:Mimasu|).
+
+mimasu#open_diff([{rev}])			*mimasu#open_diff()*
+		Open the local diff review tree (same as |:MimasuDiff|).
+		{rev} defaults to "HEAD".
 
 mimasu#close()					*mimasu#close()*
 		Close the PR review tree (same as |:MimasuClose|).

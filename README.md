@@ -5,8 +5,8 @@ A Vim plugin for reviewing GitHub Pull Requests with a 3-pane diff layout. The c
 ## Requirements
 
 - Vim 8.0+ with `+job` and `+channel`
-- [gh CLI](https://cli.github.com/) installed and authenticated
-- Git repository with an open pull request
+- Git repository
+- For PR mode (`:Mimasu`): [gh CLI](https://cli.github.com/) installed and authenticated, with an open pull request. Local diff mode (`:MimasuDiff`) needs neither.
 
 ## Installation
 
@@ -26,8 +26,17 @@ Plug 'tsukkee/vim-pr-mimasu'
 
 ```vim
 :Mimasu          " Open PR review tree (toggle)
+:MimasuDiff      " Review local working-tree diff against HEAD (toggle)
+:MimasuDiff main " Review the working tree against a given rev
 :MimasuClose     " Close tree and diff windows
 ```
+
+### Modes
+
+vim-pr-mimasu has two modes that share the same tree + 3-pane diff UI:
+
+- **PR mode** (`:Mimasu`) — review the GitHub PR for the current branch via the `gh` CLI.
+- **Local diff mode** (`:MimasuDiff`) — review the local working-tree diff (defaults to `HEAD`, i.e. all staged + unstaged changes). The right pane is the real file, so you can review **and fix** the diff in place — handy for reviewing changes produced by a coding agent before committing. This mode needs neither `gh` nor an open PR.
 
 ### Layout
 
@@ -53,8 +62,10 @@ In diff buffers:
 
 | Key | Action |
 |-----|--------|
-| `<Leader>c` | Add review comment (Normal / Visual) |
-| `<Leader>x` | Open PR in browser |
+| `<Leader>c` | Add review comment (Normal / Visual) — *PR mode only* |
+| `<Leader>x` | Open PR in browser — *PR mode only* |
+| `<Leader>w` | Toggle line wrap in both diff windows |
+| `<Leader>i` | Toggle ignoring all whitespace |
 
 In the comment buffer:
 

@@ -8,4 +8,5 @@ let g:mimasu_sidebar_position = get(g:, 'mimasu_sidebar_position', 'topleft vert
 let g:mimasu_fold_icons = get(g:, 'mimasu_fold_icons', ['▾', '▸'])
 
 command! Mimasu call mimasu#open()
+command! -nargs=? -complete=customlist,mimasu#complete_rev MimasuDiff call mimasu#open_diff(<q-args>)
 command! MimasuClose call mimasu#close()
