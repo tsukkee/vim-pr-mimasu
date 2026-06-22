@@ -1,0 +1,47 @@
+" themis configuration shared by all specs.
+
+" Enable the Assert/Throws DSL commands with CamelCase matchers (Equals, etc.)
+" for every spec.
+call themis#helper('command').with(themis#helper('assert'))
+
+" Run specs in subdirectories too.
+call themis#option('recursive', 1)
+
+" Readable default reporter for local runs (CI overrides via --reporter).
+call themis#option('reporter', 'spec')
+
+" --- Shared test helpers -----------------------------------------------------
+" Create a throwaway git repository in a temp dir and return its path. The repo
+" is initialized with a deterministic identity so commits work in CI where no
+" global git config exists.
+function! TempRepo() abort
+  let l:dir = tempname()
+  call mkdir(l:dir, 'p')
+  call s:git(l:dir, ['init', '-q'])
+  call s:git(l:dir, ['config', 'user.email', 'test@example.com'])
+  call s:git(l:dir, ['config', 'user.name', 'test'])
+  " Keep the default branch name stable regardless of the host git config.
+  call s:git(l:dir, ['symbolic-ref', 'HEAD', 'refs/heads/main'])
+  return l:dir
+endfunction
+
+" Run a git subcommand in dir, returning the command output lines.
+function! Git(dir, args) abort
+  return s:git(a:dir, a:args)
+endfunction
+
+" Write lines to dir/relpath, creating parent directories as needed.
+function! WriteFile(dir, relpath, lines) abort
+  let l:full = a:dir . '/' . a:relpath
+  let l:parent = fnamemodify(l:full, ':h')
+  if !isdirectory(l:parent)
+    call mkdir(l:parent, 'p')
+  endif
+  call writefile(a:lines, l:full)
+endfunction
+
+function! s:git(dir, args) abort
+  let l:cmd = 'git -C ' . shellescape(a:dir) . ' '
+        \ . join(map(copy(a:args), 'shellescape(v:val)'), ' ')
+  return systemlist(l:cmd)
+endfunction

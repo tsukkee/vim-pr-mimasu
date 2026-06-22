@@ -144,6 +144,11 @@ function! mimasu#diff#close(tree_winid) abort
         call win_execute(l:winid, 'diffoff')
         continue
       endif
+      " Never close the last remaining window (raises E444); leave it for the
+      " caller (mimasu#close) to replace with an empty buffer.
+      if winnr('$') <= 1
+        continue
+      endif
       call win_execute(l:winid, 'close')
     endfor
   finally

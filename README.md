@@ -89,6 +89,24 @@ let g:mimasu_sidebar_position = 'topleft vertical'  " Sidebar position
 let g:mimasu_fold_icons = ['▾', '▸']         " Directory fold icons
 ```
 
+## Development
+
+Tests are written with [vim-themis](https://github.com/thinca/vim-themis) and
+live under `test/`. To run them locally:
+
+```sh
+git clone https://github.com/thinca/vim-themis.git /tmp/vim-themis
+# Vim
+THEMIS_VIM=vim  /tmp/vim-themis/bin/themis --reporter spec ./test
+# Neovim
+THEMIS_VIM=nvim /tmp/vim-themis/bin/themis --reporter spec ./test
+```
+
+The same suite runs on Vim and Neovim in CI (see `.github/workflows/test.yml`).
+The tests cover the local diff data source (`mimasu#git#`), tree building and
+rendering, and the `:MimasuDiff` flow end to end; they create throwaway git
+repositories and need neither `gh` nor network access.
+
 ## License
 
 MIT

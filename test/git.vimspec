@@ -1,0 +1,158 @@
+" Tests for mimasu#git# (local git diff data source).
+
+" Look up a file entry by path in a build_info() result. Global so it is
+" reachable from Assert expressions, which evaluate in a separate scope.
+function! Find(files, path) abort
+  for l:f in a:files
+    if l:f.path ==# a:path
+      return l:f
+    endif
+  endfor
+  return {}
+endfunction
+
+Describe mimasu#git#build_info
+  Before each
+    call mimasu#git#clear_cache()
+    let repo = TempRepo()
+  End
+
+  It returns a pr_info-like dict in diff mode
+    call WriteFile(repo, 'a.txt', ['1', '2', '3'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+    call WriteFile(repo, 'a.txt', ['1', '2', '3', '4'])
+
+    let info = mimasu#git#build_info('HEAD', repo)
+    Assert Equals(info.mode, 'diff')
+    Assert Equals(info.base_rev, 'HEAD')
+    Assert Equals(info.title, 'git diff HEAD')
+    Assert Equals(info.baseRefName, 'HEAD')
+    Assert IsList(info.files)
+  End
+
+  It reports an added file with additions count
+    call WriteFile(repo, 'seed.txt', ['x'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+    call WriteFile(repo, 'added.txt', ['new', 'lines'])
+    call Git(repo, ['add', '-A'])
+
+    let files = mimasu#git#build_info('HEAD', repo).files
+    let added = Find(files, 'added.txt')
+    Assert Equals(added.status, 'A')
+    Assert Equals(added.additions, 2)
+    Assert Equals(added.deletions, 0)
+  End
+
+  It reports a deleted file with deletions count
+    call WriteFile(repo, 'gone.txt', ['a', 'b'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+    call delete(repo . '/gone.txt')
+
+    let files = mimasu#git#build_info('HEAD', repo).files
+    let gone = Find(files, 'gone.txt')
+    Assert Equals(gone.status, 'D')
+    Assert Equals(gone.deletions, 2)
+  End
+
+  It reports a modified file with both counts
+    call WriteFile(repo, 'mod.txt', ['keep', 'remove'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+    call WriteFile(repo, 'mod.txt', ['keep', 'added1', 'added2'])
+
+    let mod = Find(mimasu#git#build_info('HEAD', repo).files, 'mod.txt')
+    Assert Equals(mod.status, 'M')
+    Assert Equals(mod.additions, 2)
+    Assert Equals(mod.deletions, 1)
+  End
+
+  It uses the new path for a renamed file and records the old path as base
+    call WriteFile(repo, 'old.txt', ['line1', 'line2', 'line3', 'line4'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+    call Git(repo, ['mv', 'old.txt', 'new.txt'])
+
+    let files = mimasu#git#build_info('HEAD', repo).files
+    let renamed = Find(files, 'new.txt')
+    Assert Equals(renamed.status, 'R')
+    Assert Equals(renamed.base_path, 'old.txt')
+    " The old path must not appear as a separate entry.
+    Assert Empty(Find(files, 'old.txt'))
+  End
+
+  It collects both staged and unstaged changes to tracked files against HEAD
+    " Seed two tracked files, then change one with `git add` (staged) and the
+    " other without (unstaged). `git diff HEAD` must report both. Untracked
+    " files are intentionally excluded (they are not part of HEAD's diff).
+    call WriteFile(repo, 'staged.txt', ['v1'])
+    call WriteFile(repo, 'unstaged.txt', ['v1'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+    call WriteFile(repo, 'staged.txt', ['v1', 'staged change'])
+    call Git(repo, ['add', 'staged.txt'])
+    call WriteFile(repo, 'unstaged.txt', ['v1', 'unstaged change'])
+
+    let files = mimasu#git#build_info('HEAD', repo).files
+    let paths = map(copy(files), 'v:val.path')
+    Assert Includes(paths, 'staged.txt')
+    Assert Includes(paths, 'unstaged.txt')
+  End
+
+  It returns an empty file list when there are no changes
+    call WriteFile(repo, 'only.txt', ['x'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+
+    let info = mimasu#git#build_info('HEAD', repo)
+    Assert Empty(info.files)
+  End
+
+  It returns v:null for an invalid base rev
+    call WriteFile(repo, 'x.txt', ['x'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+
+    Assert Equals(mimasu#git#build_info('no-such-rev-xyz', repo), v:null)
+  End
+End
+
+Describe mimasu#git#get_base_file_content
+  Before each
+    call mimasu#git#clear_cache()
+    let repo = TempRepo()
+  End
+
+  It returns the committed content of a file
+    call WriteFile(repo, 'f.txt', ['one', 'two'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+    call WriteFile(repo, 'f.txt', ['one', 'two', 'three'])
+
+    Assert Equals(mimasu#git#get_base_file_content('HEAD', 'f.txt', repo), ['one', 'two'])
+  End
+
+  It returns v:null for a file that does not exist at the base rev
+    call WriteFile(repo, 'seed.txt', ['x'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+    call WriteFile(repo, 'brand_new.txt', ['hi'])
+
+    Assert Equals(mimasu#git#get_base_file_content('HEAD', 'brand_new.txt', repo), v:null)
+  End
+
+  It caches the result between calls
+    call WriteFile(repo, 'c.txt', ['v1'])
+    call Git(repo, ['add', '-A'])
+    call Git(repo, ['commit', '-qm', 'init'])
+
+    let first = mimasu#git#get_base_file_content('HEAD', 'c.txt', repo)
+    " Change the working tree; the cached base content must not change.
+    call WriteFile(repo, 'c.txt', ['v2'])
+    let second = mimasu#git#get_base_file_content('HEAD', 'c.txt', repo)
+    Assert Equals(first, ['v1'])
+    Assert Equals(second, ['v1'])
+  End
+End

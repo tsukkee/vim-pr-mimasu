@@ -1,0 +1,105 @@
+" Integration tests: drive :MimasuDiff end to end in a temp repo.
+
+" Set up a temp repo with one committed-then-modified file, cd into it, and
+" return its path. Working in the repo's cwd is required because mimasu derives
+" the git root from the current directory.
+function! SetupDiffRepo() abort
+  let l:repo = TempRepo()
+  call WriteFile(l:repo, 'file1.txt', ['original line'])
+  call WriteFile(l:repo, 'file2.txt', ['second original'])
+  call Git(l:repo, ['add', '-A'])
+  call Git(l:repo, ['commit', '-qm', 'init'])
+  call WriteFile(l:repo, 'file1.txt', ['original line', 'change in file1'])
+  call WriteFile(l:repo, 'file2.txt', ['second original', 'change in file2'])
+  execute 'cd ' . fnameescape(l:repo)
+  call mimasu#gh#clear_cache()
+  call mimasu#git#clear_cache()
+  return l:repo
+endfunction
+
+" Move the tree cursor to the first line matching pat and select it.
+function! SelectFileLine(pat) abort
+  for l:n in range(1, line('$'))
+    if getline(l:n) =~# a:pat
+      call cursor(l:n, 1)
+      call mimasu#toggle_or_select()
+      return 1
+    endif
+  endfor
+  return 0
+endfunction
+
+Describe :MimasuDiff
+  Before each
+    let save_cwd = getcwd()
+    let repo = SetupDiffRepo()
+  End
+
+  After each
+    " Always tear down so the next test starts clean.
+    silent! call mimasu#close()
+    execute 'cd ' . fnameescape(save_cwd)
+    silent! %bwipeout!
+  End
+
+  It opens a tree listing the changed files
+    call mimasu#open_diff('HEAD')
+    let body = join(getline(1, '$'), "\n")
+    Assert Equals(getline(1), 'git diff HEAD')
+    Assert Match(body, 'file1.txt')
+    Assert Match(body, 'file2.txt')
+  End
+
+  It opens a 3-pane diff when a file is selected
+    call mimasu#open_diff('HEAD')
+    Assert True(SelectFileLine('file1.txt'))
+    Assert Equals(winnr('$'), 3)
+
+    " The base pane shows the committed content; the right pane is the real file.
+    let names = map(range(1, winnr('$')), 'bufname(winbufnr(v:val))')
+    Assert Match(join(names, "\n"), '\[base\] file1.txt')
+    Assert Match(join(names, "\n"), 'file1.txt$')
+  End
+
+  It does not set the review-comment maps in diff mode
+    call mimasu#open_diff('HEAD')
+    call SelectFileLine('file1.txt')
+    let state = mimasu#diff#get_state()
+    call win_gotoid(state.current_winid)
+    " <Leader>c is PR-only; it must not be mapped here.
+    Assert Equals(maparg('<Leader>c', 'n'), '')
+    " The view toggles must be available.
+    Assert NotEquals(maparg('<Leader>w', 'n'), '')
+  End
+
+  It keeps an unsaved in-place edit when closing
+    call mimasu#open_diff('HEAD')
+    call SelectFileLine('file1.txt')
+    let state = mimasu#diff#get_state()
+    call win_gotoid(state.current_winid)
+    call append(0, 'AGENT FIX')
+    let edited = bufnr('%')
+
+    call mimasu#close()
+
+    " The edited buffer survives, still modified, with the edit intact.
+    Assert True(bufexists(edited))
+    Assert Equals(getbufline(edited, 1), ['AGENT FIX'])
+    Assert True(getbufvar(edited, '&modified'))
+  End
+
+  It closes cleanly when the tree is the only window
+    " No edits: closing must not raise E444 even when nothing else is open.
+    only
+    call mimasu#open_diff('HEAD')
+    call SelectFileLine('file1.txt')
+    " Must not throw (e.g. E444 last-window); a window is always left behind.
+    call mimasu#close()
+    Assert True(winnr('$') >= 1)
+  End
+
+  It reports an error message for an invalid base rev
+    call mimasu#open_diff('no-such-rev-xyz')
+    Assert Match(getline(1), 'Failed to read git diff')
+  End
+End

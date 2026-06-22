@@ -1,0 +1,86 @@
+" Tests for mimasu#tree# (tree building and rendering).
+
+" A minimal diff-mode info dict for rendering.
+function! DiffInfo(files) abort
+  return {'mode': 'diff', 'title': 'git diff HEAD', 'url': '/repo', 'files': a:files}
+endfunction
+
+function! PrInfo(files) abort
+  return {'number': 7, 'title': 'My PR', 'url': 'http://example/pr/7', 'files': a:files}
+endfunction
+
+Describe mimasu#tree#build
+  It nests files under directory nodes
+    let tree = mimasu#tree#build([{'path': 'a/b/c.txt', 'additions': 1, 'deletions': 0}])
+    Assert HasKey(tree._children, 'a')
+    Assert HasKey(tree._children.a._children, 'b')
+    Assert HasKey(tree._children.a._children.b._children, 'c.txt')
+  End
+
+  It keeps additions and deletions on leaf nodes
+    let tree = mimasu#tree#build([{'path': 'f.txt', 'additions': 3, 'deletions': 2}])
+    let leaf = tree._children['f.txt']
+    Assert Equals(leaf._additions, 3)
+    Assert Equals(leaf._deletions, 2)
+    Assert Equals(leaf._path, 'f.txt')
+  End
+End
+
+Describe mimasu#tree#render
+  It shows a PR header with the number in PR mode
+    let info = PrInfo([{'path': 'x.txt', 'additions': 1, 'deletions': 0}])
+    let lines = mimasu#tree#render(mimasu#tree#build(info.files), info)
+    Assert Equals(lines[0], '#7 My PR')
+  End
+
+  It shows a plain title header in diff mode
+    let info = DiffInfo([{'path': 'x.txt', 'additions': 1, 'deletions': 0}])
+    let lines = mimasu#tree#render(mimasu#tree#build(info.files), info)
+    Assert Equals(lines[0], 'git diff HEAD')
+  End
+
+  It renders change counts next to files
+    let info = DiffInfo([{'path': 'x.txt', 'additions': 5, 'deletions': 2}])
+    let lines = mimasu#tree#render(mimasu#tree#build(info.files), info)
+    Assert Match(join(lines, "\n"), '+5')
+    Assert Match(join(lines, "\n"), '-2')
+  End
+
+  It lists directories before files at the same level
+    let info = DiffInfo([
+          \ {'path': 'zfile.txt', 'additions': 1, 'deletions': 0},
+          \ {'path': 'adir/inside.txt', 'additions': 1, 'deletions': 0},
+          \ ])
+    let lines = mimasu#tree#render(mimasu#tree#build(info.files), info)
+    let body = filter(copy(lines), 'v:val =~# "adir/\\|zfile.txt"')
+    Assert Match(body[0], 'adir/')
+    Assert Match(body[1], 'zfile.txt')
+  End
+End
+
+Describe mimasu#tree# line lookups
+  Before each
+    let info = DiffInfo([
+          \ {'path': 'dir/a.txt', 'additions': 1, 'deletions': 0},
+          \ {'path': 'top.txt', 'additions': 1, 'deletions': 0},
+          \ ])
+    let lines = mimasu#tree#render(mimasu#tree#build(info.files), info)
+  End
+
+  It identifies a directory line
+    " Lines: 0 header, 1 url, 2 separator, 3 'dir/', 4 'a.txt', 5 'top.txt'
+    Assert True(mimasu#tree#is_dir_at_line(4))
+  End
+
+  It returns the file path for a file line
+    Assert Equals(mimasu#tree#get_path_at_line(5), 'dir/a.txt')
+  End
+
+  It returns an empty path for a directory line
+    Assert Equals(mimasu#tree#get_path_at_line(4), '')
+  End
+
+  It returns an empty path for an out-of-range line
+    Assert Equals(mimasu#tree#get_path_at_line(999), '')
+  End
+End

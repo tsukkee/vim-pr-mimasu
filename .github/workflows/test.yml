@@ -1,0 +1,38 @@
+name: test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  themis:
+    name: themis (${{ matrix.editor }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - editor: vim
+            neovim: false
+          - editor: neovim
+            neovim: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout vim-themis
+        uses: actions/checkout@v4
+        with:
+          repository: thinca/vim-themis
+          path: vim-themis
+
+      - name: Install ${{ matrix.editor }}
+        uses: rhysd/action-setup-vim@v1
+        id: vim
+        with:
+          neovim: ${{ matrix.neovim }}
+
+      - name: Run tests
+        env:
+          THEMIS_VIM: ${{ steps.vim.outputs.executable }}
+        run: ./vim-themis/bin/themis --reporter spec ./test
